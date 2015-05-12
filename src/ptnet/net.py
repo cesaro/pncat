@@ -548,7 +548,7 @@ class Net :
         self.fire_run (run) # asserts this as a run
         return run
 
-    def write (self, f, fmt='pep', m=0) :
+    def write (self, f, fmt='pnml', m=0) :
         if isinstance (f, basestring) : f = open (f, 'w')
         if fmt == 'll_net' : return self.__write_llnet (f, m)
         if fmt == 'dot' : return self.__write_dot (f, m)
@@ -570,12 +570,12 @@ class Net :
         for p in self.places :
             if m != 0 and p.m != m : continue
             m1 = 'M%d' % self.m0[p] if self.m0[p] > 0 else ''
-            f.write ('%d"%s"9@9%s\n' % (len (tab), repr (p), m1))
+            f.write ('%d"%s"9@9%s\n' % (len (tab), p.name, m1))
             tab[p] = len (tab)
         f.write ('TR\n')
         for t in self.trans :
             if m != 0 and t.m != m : continue
-            f.write ('%d"%s"9@9\n' % (len (tab), repr (t)))
+            f.write ('%d"%s"9@9\n' % (len (tab), t.name))
             tab[t] = len (tab)
 
         out = ''

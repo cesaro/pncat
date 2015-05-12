@@ -6,6 +6,7 @@ class Formula :
     TRUE         = 0
     FALSE        = 1
     IS_FIREABLE  = 2
+    DEADLOCK     = 18
     LEQ          = 3
     NOT          = 4
     OR           = 5
@@ -265,11 +266,13 @@ class Formula :
 
     def __str__ (self) :
         if self.op == Formula.TRUE :
-            return "true"
+            return "(true)"
         elif self.op == Formula.FALSE :
-            return "false"
+            return "(false)"
+        elif self.op == Formula.DEADLOCK :
+            return "(deadlock)"
         elif self.op == Formula.IS_FIREABLE :
-            s = "is-firable("
+            s = "(is-firable "
             if len (self.atom_identifiers) > 5 :
                 s += ", ".join (repr (t) for t in self.atom_identifiers[:5])
                 s += ", ... %d more" % (len (self.atom_identifiers) - 5)
@@ -277,21 +280,21 @@ class Formula :
                 s += ", ".join (repr (t) for t in self.atom_identifiers)
             return s + ")"
         elif self.op == Formula.LEQ :
-            return "(" + str (self.sub1) + " <= " + str (self.sub2) + ")"
+            return "(leq " + str (self.sub1) + " " + str (self.sub2) + ")"
         elif self.op == Formula.NOT :
             return "(not " + str (self.sub1) + ")"
         elif self.op == Formula.OR :
-            return "(" + str (self.sub1) + " or " + str (self.sub2) + ")"
+            return "(or " + str (self.sub1) + " " + str (self.sub2) + ")"
         elif self.op == Formula.AND :
-            return "(" + str (self.sub1) + " and " + str (self.sub2) + ")"
+            return "(and " + str (self.sub1) + " " + str (self.sub2) + ")"
         elif self.op == Formula.EX :
             return "(EX " + str (self.sub1) + ")"
         elif self.op == Formula.EU :
-            return "(E " + str (self.sub1) + " U " + str (self.sub2) + ")"
+            return "(EU " + str (self.sub1) + " " + str (self.sub2) + ")"
         elif self.op == Formula.EG :
             return "(EG " + str (self.sub1) + ")"
         elif self.op == Formula.TOKEN_COUNT :
-            s = "token-count("
+            s = "(token-count "
             if len (self.atom_identifiers) > 5 :
                 s += ", ".join (repr (p) for p in self.atom_identifiers[:5])
                 s += ", ... %d more" % (len (self.atom_identifiers) - 5)
@@ -311,27 +314,84 @@ class Formula :
         elif self.op == Formula.X :
             return "(X " + str (self.sub1) + ")"
         elif self.op == Formula.U :
-            return "(" + str (self.sub1) + " U " + str (self.sub2) + ")"
+            return "(U " + str (self.sub1) + " " + str (self.sub2) + ")"
         else :
             raise Exception, 'Formula::__str__, internal error'
 
+    def write (self, f, fmt='cunf') :
+        if isinstance (f, basestring) : f = open (f, 'w')
+        if fmt == 'cunf' : return self.__write_cunf (f)
+
+    def __write_cunf (self, f) :
+        # <f>    ::= EF <f1> | AG <f1>
+        # <f1>   ::= NOT <f1> | {AND,OR} <f1> <f1> | <atom>
+        # <atom> ::= is-fireable ... | deadlock
+
+        # negate={Y,N} id formula
+
+        negate = False
+        if self.op == Formula.A and self.sub1.op == Formula.G :
+            negate = True
+        elif self.op == Formula.E and self.sub1.op == Formula.F :
+            pass
+        else :
+            raise Exception, "Formula is not of the form EF or AG"
+
+        # if negate is true, we need to introduce a double negation ;)
+        # as AG f = ! EF (! f)
+        f.write ('# negate=%s id=%s txt=%s\n' %
+            ('Y' if negate else 'N', self.ident, str(self)[:40]))
+        if negate :
+            f.write ('! ')
+        self.sub1.sub1.__write_cunf_rec (f)
+        f.write ('\n')
+
+    def __write_cunf_rec (self, f) :
+        # expect NOT, AND, OR, DEADLOCK, IS_FIREABLE
+        if self.op == Formula.NOT :
+            f.write ('(! ')
+            self.sub1.__write_cunf_rec (f)
+            f.write (')')
+        elif self.op == Formula.AND :
+            f.write ('(')
+            self.sub1.__write_cunf_rec (f)
+            f.write (' && ')
+            self.sub2.__write_cunf_rec (f)
+            f.write (')')
+        elif self.op == Formula.OR :
+            f.write ('(')
+            self.sub1.__write_cunf_rec (f)
+            f.write (' || ')
+            self.sub2.__write_cunf_rec (f)
+            f.write (')')
+        elif self.op == Formula.DEADLOCK :
+            f.write ('deadlock')
+        elif self.op == Formula.IS_FIREABLE :
+            f.write ('(')
+            for t in self.atom_identifiers[:-1] :
+                f.write ('"%s" || ' % str (t))
+            f.write ('"%s")' % str (self.atom_identifiers[-1]))
+        else :
+            raise Exception, \
+                "Operator %d is not accepted in Cunf's syntax" % self.op
+
     @staticmethod
-    def read (net, path, fmt='mcc15') :
-        if fmt == 'mcc15' : return Formula.__read_mcc15 (net, path)
+    def read (path, net=None, fmt='mcc15') :
+        if fmt == 'mcc15' : return Formula.__read_mcc15 (path, net)
         raise Exception, "'%s': unknown input format" % fmt
 
     @staticmethod
-    def __read_mcc15 (net, path) :
+    def __read_mcc15 (path, net) :
         print "pncat: loading XML in memory (ElementTree.parse)"
         xmltree = xml.etree.ElementTree.parse (path)
         root = xmltree.getroot ()
         result = []
         for child in root :
-            result.append (Formula.__read_mcc15_parse_property (net, child))
+            result.append (Formula.__read_mcc15_parse_property (child, net))
         return result
 
     @staticmethod
-    def __read_mcc15_parse_property (net, xmltree) :
+    def __read_mcc15_parse_property (xmltree, net) :
         f = Formula.__read_mcc15_parse_formula (net, xmltree.find ('{http://mcc.lip6.fr/}formula')[0])
         f.ident = xmltree.find ('{http://mcc.lip6.fr/}id').text
         return f
@@ -381,9 +441,13 @@ class Formula :
                 print "pncat: is-fireable XML tag with %d transition ids (!!)" % len (xmltree)
             nr = 0
             for xmlsub in xmltree :
-                t = net.trans_lookup (xmlsub.text)
-                if t == None :
-                    raise Exception, "'%s': transition id not found in this net" % xmlsub.text
+                if net is None :
+                    t = xmlsub.text
+                else :
+                    t = net.trans_lookup_id (xmlsub.text)
+                    if t == None :
+                        raise Exception, \
+                                "'%s': transition id not found in this net" % xmlsub.text
                 f.atom_identifiers.append (t)
                 nr += 1
                 if nr % 10000 == 0 :
@@ -398,13 +462,19 @@ class Formula :
                 print "pncat: tokens-count XML tag with %d transition ids (!!)" % len (xmltree)
             nr = 0
             for xmlsub in xmltree :
-                p = net.place_lookup (xmlsub.text)
-                if p == None :
-                    raise Exception, "'%s': place id not found in this net" % xmlsub.text
+                if net is None :
+                    p = xmlsub.text
+                else :
+                    p = net.place_lookup_id (xmlsub.text)
+                    if p == None :
+                        raise Exception, \
+                                "'%s': place id not found in this net" % xmlsub.text
                 f.atom_identifiers.append (p)
                 nr += 1
                 if nr % 10000 == 0 :
                     print "pncat: loaded %d place ids" % nr
+        elif xmltree.tag == '{http://mcc.lip6.fr/}deadlock' :
+            f.op = Formula.DEADLOCK
         else :
             raise Exception, \
                 "'%s': unable to handle XML tag, probably I cannot handle this formula" % xmltree.tag
