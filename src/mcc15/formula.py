@@ -344,7 +344,7 @@ class Formula :
         if negate :
             f.write ('! ')
         self.sub1.sub1.__write_cunf_rec (f)
-        f.write ('\n')
+        f.write (';\n')
 
     def __write_cunf_rec (self, f) :
         # expect NOT, AND, OR, DEADLOCK, IS_FIREABLE
