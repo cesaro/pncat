@@ -2,6 +2,8 @@
 * acting as a filter
 * general informations and statistics
 * set PNML ids to names, and names to PNML ids
+* indent PNML
+* compress PNML (.gz and remove spaces)
 
 statistics:
  * file size
