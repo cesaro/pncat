@@ -69,6 +69,7 @@ class Main :
                 "ll_net",
                 "pt1",
                 "dot",
+                "prod",
                 ]
 
         usage = "pncat [OPTION]... CMD PATH [PATHs]\n" + \
@@ -84,7 +85,7 @@ class Main :
         p.add_argument ('cmd_args', metavar="CMD_ARGS", nargs="*")
 
         self.args = p.parse_args ()
-        #print "pod: args:", args
+        print "pncat: args:", self.args
 
         if self.args.cmd == "convert" :
             if len (self.args.cmd_args) != 2 :

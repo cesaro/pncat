@@ -556,6 +556,7 @@ class Net :
         if fmt == 'pnml' : return self.__write_pnml (f, m)
         if fmt == 'ctxdot' : return self.__write_ctxdot (f, 5, 1)
         if fmt == 'pt1' : return self.__write_pt1 (f, m)
+        if fmt == 'prod' : return self.__write_prod (f, m)
         raise Exception, "'%s': unknown output format" % fmt
 
     def __write_llnet (self, f, m=0) :
@@ -612,6 +613,28 @@ class Net :
             for p in t.pre : f.write (' %d' % tab[p])
             for p in t.post : f.write (' %d' % tab[p])
             f.write ('\n')
+
+    def __write_prod (self, f, m=0) :
+        # - we ignore m !!
+        # - we ignore the weights of arcs
+
+        for p in self.places :
+            assert ("'" not in repr (p) and '/' not in repr (p)) # the list continues ...
+            f.write ('\n#place %s' % repr (p))
+            if self.m0[p] :
+                f.write (' mk(<.1..%d.>)' % self.m0[p])
+
+        f.write ('\n')
+        for t in self.trans :
+            assert len (t.cont) == 0
+            f.write ('\n#trans %s\n' % repr (t))
+            f.write ('in {')
+            for p in t.pre :
+                f.write ('%s:<..>; ' % (repr (p)))
+            f.write ('}\nout {')
+            for p in t.post :
+                f.write ('%s:<..>; ' % (repr (p)))
+            f.write ('}\n#endtr\n')
 
     # FIXME -- this method has never been tested !!
     def __write_ctxdot (self, f, items, n) :
@@ -775,7 +798,7 @@ class Net :
             if m != 0 and c.m != m : continue
             s = '\n<node id="%d" nodeType="place">\n' % len (tab)
             s += '<attribute name="name">%s</attribute>\n' % repr (p)
-            s += '<attribute name="marking">%d</attribute>\n' % p.m0
+            s += '<attribute name="marking">%d</attribute>\n' % self.m0[p]
             s += '</node>\n'
             tab[p] = len (tab)
 
